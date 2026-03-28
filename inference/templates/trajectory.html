@@ -68,7 +68,7 @@
     {% endif %}
   </div>
   <div class="step-info">
-    <h2>Step {{ loop.index0 }}</h2>
+    <h2>Step {{ loop.index0 }}{% if step.action_name %} — <code>{{ step.action_name }}</code>{% endif %}</h2>
     <p><b>URL:</b> {{ step.url }}</p>
     <p><b>Title:</b> {{ step.title }}</p>
     {% if step.prediction_json %}

@@ -27,11 +27,16 @@ def _img_to_data_url(img) -> str:
     return f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}"
 
 
+_CLICK_ACTION_NAMES = {"mouse_click", "mouse_dblclick", "gemini_type_text_at"}
+
+
 def get_click_xy(step) -> tuple[float, float] | None:
-    """Return (x, y) viewport pixel coords if the step's action targets a point."""
+    """Return (x, y) viewport pixel coords if the step's action is a point-click action."""
     if not step.prediction:
         return None
     action = step.prediction.action
+    if step.prediction.name not in _CLICK_ACTION_NAMES:
+        return None
     x = getattr(action, "x", None)
     y = getattr(action, "y", None)
     if x is None or y is None:
@@ -64,11 +69,20 @@ def annotate_step_image(step):
 def _step_context(step) -> dict:
     img = annotate_step_image(step)
 
+    prediction_json = None
+    action_name = None
+    if step.prediction:
+        action_name = step.prediction.name
+        pred_dict = step.prediction.model_dump()
+        pred_dict["action"]["name"] = action_name
+        prediction_json = json.dumps(pred_dict, indent=2)
+
     return {
         "img_data_url": _img_to_data_url(img) if img else None,
         "url": step.state.page_url if step.state else "N/A",
         "title": step.state.page_title if step.state else "N/A",
-        "prediction_json": json.dumps(step.prediction.model_dump(), indent=2) if step.prediction else None,
+        "action_name": action_name,
+        "prediction_json": prediction_json,
         "error": step.error,
     }
 
