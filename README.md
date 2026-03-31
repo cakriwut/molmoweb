@@ -101,8 +101,11 @@ This downloads the weights to `./checkpoints/<model-name>`.
 ### 2. Start the Model Server
 
 ```bash
+# default predictor type is native
+bash scripts/start_server.sh ./checkpoints/MolmoWeb-4B-Native       # MolmoWeb-4B-Native
+# change to HF-compatible
+export PREDICTOR_TYPE="hf"
 bash scripts/start_server.sh ./checkpoints/MolmoWeb-8B              # MolmoWeb-8B, port 8001
-bash scripts/start_server.sh ./checkpoints/MolmoWeb-4B-Native       # MolmoWeb-4B
 bash scripts/start_server.sh ./checkpoints/MolmoWeb-8B 8002         # custom port
 ```
 
