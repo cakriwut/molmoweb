@@ -69,6 +69,8 @@ app = FastAPI()
 
 @app.get("/health")
 def health():
+    if predictor_pool.empty():
+        return {"status": "busy"}
     return {"status": "ok"}
 
 

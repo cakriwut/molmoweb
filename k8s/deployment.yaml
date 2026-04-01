@@ -37,18 +37,20 @@ spec:
             httpGet:
               path: /health
               port: 8001
-            initialDelaySeconds: 30
+            initialDelaySeconds: 120
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /health
               port: 8001
-            initialDelaySeconds: 60
+            initialDelaySeconds: 180
             periodSeconds: 30
           volumeMounts:
             - name: model-cache
               mountPath: /app/checkpoints
           resources:
+            requests:
+              nvidia.com/gpu: "1"
             limits:
               nvidia.com/gpu: "1"
       volumes:
