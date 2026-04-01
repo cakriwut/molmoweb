@@ -67,6 +67,11 @@ predictor_pool = create_predictor_pool(
 app = FastAPI()
 
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 class PredictRequest(BaseModel):
     prompt: str
     image_base64: str
