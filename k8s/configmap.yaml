@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: molmoweb-config
 data:
-  CKPT: "/app/checkpoints/MolmoWeb-8B"
+  CKPT: "/app/checkpoints/allenai/MolmoWeb-8B"
   MODEL_NAME: "allenai/MolmoWeb-8B"
   NUM_PREDICTORS: "1"
   PREDICTOR_TYPE: "native"
