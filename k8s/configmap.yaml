@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: molmoweb-config
+data:
+  CKPT: "/app/checkpoints/allenai/MolmoWeb-8B"
+  MODEL_NAME: "allenai/MolmoWeb-8B"
+  NUM_PREDICTORS: "1"
+  PREDICTOR_TYPE: "native"
+  TEMPERATURE: "0.7"
+  TOP_P: "0.8"
+  PORT: "8001"
+  HF_HUB_DISABLE_PROGRESS_BARS: "1"
+  HF_HUB_DISABLE_TELEMETRY: "1"

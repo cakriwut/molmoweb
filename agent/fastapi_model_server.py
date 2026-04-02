@@ -6,6 +6,7 @@ os.environ.setdefault("MOLMO_DATA_DIR", os.path.join(os.environ.get("TMPDIR", "/
 import queue
 import torch
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from agent.model_backends import HFActionPredictor, NativeActionPredictor
@@ -65,6 +66,18 @@ predictor_pool = create_predictor_pool(
 )
 
 app = FastAPI()
+
+
+@app.get("/healthz")
+def liveness():
+    return {"status": "ok"}
+
+
+@app.get("/readyz")
+def readiness():
+    if predictor_pool.qsize() == 0:
+        return JSONResponse(status_code=503, content={"status": "busy"})
+    return {"status": "ok"}
 
 
 class PredictRequest(BaseModel):

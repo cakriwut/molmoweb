@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: molmoweb
+  labels:
+    app: molmoweb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: molmoweb
+  template:
+    metadata:
+      labels:
+        app: molmoweb
+    spec:
+      initContainers:
+        - name: download-models
+          image: molmoweb:latest
+          command: ["bash", "-c", "scripts/download_weights.sh \"$MODEL_NAME\""]
+          envFrom:
+            - configMapRef:
+                name: molmoweb-config
+          volumeMounts:
+            - name: model-cache
+              mountPath: /app/checkpoints
+      containers:
+        - name: molmoweb
+          image: molmoweb:latest
+          ports:
+            - containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: molmoweb-config
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8001
+            initialDelaySeconds: 120
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8001
+            initialDelaySeconds: 180
+            periodSeconds: 30
+          volumeMounts:
+            - name: model-cache
+              mountPath: /app/checkpoints
+          resources:
+            requests:
+              nvidia.com/gpu: "1"
+            limits:
+              nvidia.com/gpu: "1"
+      volumes:
+        - name: model-cache
+          emptyDir: {}
