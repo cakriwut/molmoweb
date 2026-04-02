@@ -17,8 +17,7 @@ spec:
       initContainers:
         - name: download-models
           image: molmoweb:latest
-          command: ["bash", "scripts/download_weights.sh"]
-          args: ["$(MODEL_NAME)"]
+          command: ["bash", "-c", "scripts/download_weights.sh \"$MODEL_NAME\""]
           envFrom:
             - configMapRef:
                 name: molmoweb-config
