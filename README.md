@@ -26,6 +26,7 @@
   - [Single Query](#single-query)
   - [Batch Queries](#batch-queries)
   - [Extract Accessibility Tree](#extract-accessibility-tree)
+- [Benchmarks](#benchmarks)
 - [Annotation Tool](annotation/README.md)
 - [License](#license)
 - [TODO](#todo)
@@ -226,6 +227,116 @@ client.close()
 
 ---
 
+## Benchmarks
+
+The `benchmarks/` directory contains the unified evaluation framework. It supports five benchmarks out of the box: **WebVoyager**, **Online Mind2Web**, **DeepShop**, **WebTailBench**, and **Custom** (bring your own tasks).
+
+The evaluation pipeline has two stages:
+
+1. **Run** -- the agent executes tasks in a browser, producing trajectory logs.
+2. **Judge** -- an LLM judge scores each trajectory for success.
+
+### Running Evaluations
+
+The entry point is `benchmarks/benchmarks.py`, a [Fire](https://github.com/google/python-fire) CLI with two commands: `run` and `judge`.
+
+```bash
+uv run python -m benchmarks.benchmarks run \
+    --benchmark custom \
+    --data_path ./demo_task.json \
+    --results_dir ./results \
+    --agent_type molmoweb \
+    --inference_mode fastapi \
+    --endpoint_or_checkpoint http://127.0.0.1:8001 \
+    --max_steps 30 \
+    --num_workers 1 \
+    --env_type simple
+```
+
+### Judging Results
+
+After trajectories are collected, run the judge. The `webvoyager` judge requires `OPENAI_API_KEY` to be set.
+
+```bash
+uv run python -m benchmarks.benchmarks judge \
+    --benchmark custom \
+    --data_path ./demo_task.json \
+    --results_dir ./results \
+    --judge_type webvoyager \
+    --num_workers 1
+```
+
+### Synthetic Data Generation
+
+The same evaluation framework can be used to generate synthetic training data by running other agents on tasks. Collect trajectories with any supported agent and use the resulting logs for training.
+
+### Agents
+
+| Agent | Description | Required Environment Variables |
+|-------|-------------|-------------------------------|
+| `molmoweb` | MolmoWeb multimodal agent (local model server) | None (uses `--endpoint_or_checkpoint`) |
+| `gemini_cua` | Gemini computer-use agent | `GOOGLE_API_KEY` |
+| `gemini_axtree` | Gemini with accessibility tree | `GOOGLE_API_KEY` |
+| `gpt_axtree` | GPT with accessibility tree | `OPENAI_API_KEY` |
+
+We welcome contributions of custom agents. To add your own, implement the agent interface in `agent/` and register the agent type in `benchmarks/evaluate.py`.
+
+### Evaluating Other Agents on Benchmarks
+
+You can evaluate any supported agent on any benchmark using the same code. For example, to evaluate `gemini_axtree` on Online Mind2Web with Browserbase:
+
+```bash
+uv run python -m benchmarks.benchmarks run \
+    --benchmark online_mind2web \
+    --results_dir ./results/om2w_gemini_axtree \
+    --agent_type gemini_axtree \
+    --max_steps 30 \
+    --num_workers 5 \
+    --env_type browserbase
+```
+
+Then judge the results:
+
+```bash
+uv run python -m benchmarks.benchmarks judge \
+    --benchmark online_mind2web \
+    --results_dir ./results/om2w_gemini_axtree \
+    --judge_type webjudge_online_mind2web \
+    --num_workers 5
+```
+
+### benchmarks.py Reference
+
+#### `run` command
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `results_dir` | `str` | *(required)* | Output directory for trajectory logs. |
+| `agent_type` | `str` | *(required)* | Agent to use: `molmoweb`, `gemini_cua`, `gemini_axtree`, or `gpt_axtree`. |
+| `benchmark` | `str` | `"custom"` | Benchmark name: `custom`, `deepshop`, `webvoyager`, `online_mind2web`, or `webtailbench`. |
+| `data_path` | `str` | `None` | Override the default data file path for the chosen benchmark. |
+| `inference_mode` | `str` | `None` | How to connect to the model: `fastapi` (HTTP endpoint), `local` (in-process HF), `modal` (Modal serverless), or `native` (in-process OLMo). |
+| `endpoint_or_checkpoint` | `str` | `None` | Either an HTTP URL (for `fastapi`/`modal`) or a local path / HF model ID (for `local`/`native`). |
+| `device` | `str` | `None` | CUDA device for local inference, e.g. `cuda:0`. |
+| `api_key` | `str` | `None` | API key for API-based agents (Gemini, GPT). |
+| `num_workers` | `int` | `5` | Number of parallel evaluation workers. |
+| `max_steps` | `int` | `30` | Maximum agent steps per episode. |
+| `env_type` | `str` | `"simple"` | Browser environment: `browserbase` (requires `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID`) or `simple` (local Chromium). |
+
+#### `judge` command
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `results_dir` | `str` | *(required)* | Directory containing trajectory logs to judge. |
+| `benchmark` | `str` | `"custom"` | Benchmark name (must match what was used during `run`). |
+| `data_path` | `str` | `None` | Override data file path. |
+| `judge_type` | `str` | `None` | Judge implementation. Defaults to the benchmark's default judge. Options: `webvoyager` (GPT-4o), `deepshop_judge`, `webjudge_online_mind2web`. |
+| `num_workers` | `int` | `30` | Number of parallel judging workers. |
+
+See [benchmarks/README.md](benchmarks/README.md) for full documentation.
+
+---
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE) for details.
@@ -233,6 +344,6 @@ Apache 2.0. See [LICENSE](LICENSE) for details.
 ## TODO
 
 - [x] Inference
-- [ ] Eval
+- [x] Eval
 - [ ] Training
 - [x] Annotation Tool
