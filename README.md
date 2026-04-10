@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://allenai.org/papers/molmoweb">Paper</a> &nbsp;|&nbsp;
+  <a href="https://arxiv.org/pdf/2604.08516">Paper</a> &nbsp;|&nbsp;
   <a href="https://allenai.org/blog/molmoweb">Blog Post</a> &nbsp;|&nbsp;
   <a href="https://molmoweb.allen.ai">Demo</a> &nbsp;|&nbsp;
   <a href="https://huggingface.co/collections/allenai/molmoweb">Models</a> &nbsp;|&nbsp;
@@ -36,7 +36,6 @@
   - [SFT Training](#sft-training)
 - [Grounding Evaluation](#grounding-evaluation)
 - [License](#license)
-- [TODO](#todo)
 
 ---
 
