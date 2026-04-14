@@ -1,0 +1,9 @@
+.env
+.sesskey
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+actions.db
+.DS_Store
+uploads/

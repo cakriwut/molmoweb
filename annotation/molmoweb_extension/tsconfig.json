@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "es2022",
+    "allowJs": true,
+    "checkJs": false,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+
+    "strict": false,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitAny": false,
+
+    "module": "preserve",
+    "noEmit": true,
+
+    "lib": ["es2022", "dom", "dom.iterable"]
+  }
+}

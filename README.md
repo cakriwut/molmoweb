@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://allenai.org/papers/molmoweb">Paper</a> &nbsp;|&nbsp;
+  <a href="https://arxiv.org/pdf/2604.08516">Paper</a> &nbsp;|&nbsp;
   <a href="https://allenai.org/blog/molmoweb">Blog Post</a> &nbsp;|&nbsp;
   <a href="https://molmoweb.allen.ai">Demo</a> &nbsp;|&nbsp;
   <a href="https://huggingface.co/collections/allenai/molmoweb">Models</a> &nbsp;|&nbsp;
@@ -26,8 +26,17 @@
   - [Single Query](#single-query)
   - [Batch Queries](#batch-queries)
   - [Extract Accessibility Tree](#extract-accessibility-tree)
+- [Benchmarks](#benchmarks)
+- [Annotation Tool](annotation/README.md)
+- [Training](#training)
+  - [Setup](#setup)
+  - [Downloading Data](#downloading-data)
+  - [Visualizing Data](#visualizing-data)
+  - [Downloading Pretrained Checkpoints](#downloading-pretrained-checkpoints)
+  - [SFT Training](#sft-training)
+- [Grounding Evaluation](#grounding-evaluation)
+- [Citation](#citation)
 - [License](#license)
-- [TODO](#todo)
 
 ---
 
@@ -50,7 +59,7 @@ The first two models (MolmoWeb-8B and MolmoWeb-4B) are Huggingface/transformers-
 
 ## Installation
 
-Requires Python 3.10+. We use [uv](https://docs.astral.sh/uv/) for dependency management.
+Requires Python >=3.10,<3.13. We use [uv](https://docs.astral.sh/uv/) for dependency management.
 
 ```bash
 # Install uv if you don't have it
@@ -59,7 +68,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Clone and install
 git clone git@github.com:allenai/molmoweb.git
 cd molmoweb
-uv venv
+uv venv --python ">=3.10,<3.13"
 uv sync
 
 # Install Playwright browsers (needed for local browser control)
@@ -210,7 +219,7 @@ trajectories = client.run_batch(
 
 Supported backends: `fastapi` (remote HTTP endpoint), `modal` (serverless), `native` (native molmo/olmo-compatible checkpoint), `hf` (HuggingFace Transformers-compatible checkpoint).
 
-> **vLLM support coming soon.**
+> **vLLM support**: We leave vLLM integration to users. Please be cautious, as vLLM does not support the exact attention backend used in OLMo, which may lead to unexpected behavior or reduced accuracy.
 
 ### Extract Accessibility Tree
 
@@ -225,12 +234,259 @@ client.close()
 
 ---
 
+## Benchmarks
+
+The `benchmarks/` directory contains the unified evaluation framework. It supports five benchmarks out of the box: **WebVoyager**, **Online Mind2Web**, **DeepShop**, **WebTailBench**, and **Custom** (bring your own tasks).
+
+The evaluation pipeline has two stages:
+
+1. **Run** -- the agent executes tasks in a browser, producing trajectory logs.
+2. **Judge** -- an LLM judge scores each trajectory for success.
+
+### Running Evaluations
+
+The entry point is `benchmarks/benchmarks.py`, a [Fire](https://github.com/google/python-fire) CLI with two commands: `run` and `judge`.
+
+```bash
+uv run python -m benchmarks.benchmarks run \
+    --benchmark custom \
+    --data_path ./demo_task.json \
+    --results_dir ./results \
+    --agent_type molmoweb \
+    --inference_mode fastapi \
+    --endpoint_or_checkpoint http://127.0.0.1:8001 \
+    --max_steps 30 \
+    --num_workers 1 \
+    --env_type simple
+```
+
+### Judging Results
+
+After trajectories are collected, run the judge. The `webvoyager` judge requires `OPENAI_API_KEY` to be set.
+
+```bash
+uv run python -m benchmarks.benchmarks judge \
+    --benchmark custom \
+    --data_path ./demo_task.json \
+    --results_dir ./results \
+    --judge_type webvoyager \
+    --num_workers 1
+```
+
+### Synthetic Data Generation
+
+The same evaluation framework can be used to generate synthetic training data by running other agents on tasks. Collect trajectories with any supported agent and use the resulting logs for training.
+
+### Agents
+
+| Agent | Description | Required Environment Variables |
+|-------|-------------|-------------------------------|
+| `molmoweb` | MolmoWeb multimodal agent (local model server) | None (uses `--endpoint_or_checkpoint`) |
+| `gemini_cua` | Gemini computer-use agent | `GOOGLE_API_KEY` |
+| `gemini_axtree` | Gemini with accessibility tree | `GOOGLE_API_KEY` |
+| `gpt_axtree` | GPT with accessibility tree | `OPENAI_API_KEY` |
+
+We welcome contributions of custom agents. To add your own, implement the agent interface in `agent/` and register the agent type in `benchmarks/evaluate.py`.
+
+### Evaluating Other Agents on Benchmarks
+
+You can evaluate any supported agent on any benchmark using the same code. For example, to evaluate `gemini_axtree` on Online Mind2Web with Browserbase:
+
+```bash
+uv run python -m benchmarks.benchmarks run \
+    --benchmark online_mind2web \
+    --results_dir ./results/om2w_gemini_axtree \
+    --agent_type gemini_axtree \
+    --max_steps 30 \
+    --num_workers 5 \
+    --env_type browserbase
+```
+
+Then judge the results:
+
+```bash
+uv run python -m benchmarks.benchmarks judge \
+    --benchmark online_mind2web \
+    --results_dir ./results/om2w_gemini_axtree \
+    --judge_type webjudge_online_mind2web \
+    --num_workers 5
+```
+
+### benchmarks.py Reference
+
+#### `run` command
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `results_dir` | `str` | *(required)* | Output directory for trajectory logs. |
+| `agent_type` | `str` | *(required)* | Agent to use: `molmoweb`, `gemini_cua`, `gemini_axtree`, or `gpt_axtree`. |
+| `benchmark` | `str` | `"custom"` | Benchmark name: `custom`, `deepshop`, `webvoyager`, `online_mind2web`, or `webtailbench`. |
+| `data_path` | `str` | `None` | Override the default data file path for the chosen benchmark. |
+| `inference_mode` | `str` | `None` | How to connect to the model: `fastapi` (HTTP endpoint), `local` (in-process HF), `modal` (Modal serverless), or `native` (in-process OLMo). |
+| `endpoint_or_checkpoint` | `str` | `None` | Either an HTTP URL (for `fastapi`/`modal`) or a local path / HF model ID (for `local`/`native`). |
+| `device` | `str` | `None` | CUDA device for local inference, e.g. `cuda:0`. |
+| `api_key` | `str` | `None` | API key for API-based agents (Gemini, GPT). |
+| `num_workers` | `int` | `5` | Number of parallel evaluation workers. |
+| `max_steps` | `int` | `30` | Maximum agent steps per episode. |
+| `env_type` | `str` | `"simple"` | Browser environment: `browserbase` (requires `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID`) or `simple` (local Chromium). |
+
+#### `judge` command
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `results_dir` | `str` | *(required)* | Directory containing trajectory logs to judge. |
+| `benchmark` | `str` | `"custom"` | Benchmark name (must match what was used during `run`). |
+| `data_path` | `str` | `None` | Override data file path. |
+| `judge_type` | `str` | `None` | Judge implementation. Defaults to the benchmark's default judge. Options: `webvoyager` (GPT-4o), `deepshop_judge`, `webjudge_online_mind2web`. |
+| `num_workers` | `int` | `30` | Number of parallel judging workers. |
+
+See [benchmarks/README.md](benchmarks/README.md) for full documentation.
+
+---
+
+## Training
+
+Training code lives in the `train/` directory. MolmoWeb training is a single-stage SFT on top of a Molmo2 pretrained checkpoint.
+
+### Setup
+
+Install dependencies inside the `train/` directory:
+
+```bash
+cd train
+uv sync
+```
+
+Set the following environment variables (used by training, eval, and data scripts):
+
+```bash
+export WEBOLMO_DATA_DIR=/path/to/datasets   # MolmoWeb training data
+```
+
+### Downloading Data
+
+MolmoWeb training data is hosted on HuggingFace under the [MolmoWeb Data collection](https://huggingface.co/collections/allenai/molmoweb-data). With `WEBOLMO_DATA_DIR` set, download all datasets with:
+
+```bash
+uv run python olmo/data/download_datasets.py
+```
+
+| Dataset | HuggingFace Repo | Description |
+|---|---|---|
+| SyntheticGround | `allenai/MolmoWeb-SyntheticGround` | Synthetic web grounding (click targets) |
+| SyntheticQA | `allenai/MolmoWeb-SyntheticQA` | Synthetic screenshot QA |
+| SyntheticTrajs | `allenai/MolmoWeb-SyntheticTrajs` | Gemini-generated agent trajectories |
+| HumanTrajs | `allenai/MolmoWeb-HumanTrajs` | Human-annotated trajectories |
+| SyntheticSkills | `allenai/MolmoWeb-SyntheticSkills` | Synthetic atomic skill demonstrations |
+| HumanSkills | `allenai/MolmoWeb-HumanSkills` | Human atomic skill demonstrations |
+| PixMoPoints | `allenai/pixmo-points` | Point annotations for visual grounding |
+| ScreenSpot | `rootsautomation/ScreenSpot` | UI grounding benchmark |
+| ScreenSpotV2 | `likaixin/ScreenSpot-v2-variants` | UI grounding benchmark v2 |
+
+### Visualizing Data
+
+To inspect dataset examples as an HTML file, run `dataset_visualize.py` from inside the `train/` directory:
+
+```bash
+uv run python dataset_visualize.py <task> <output_dir>
+```
+
+For example, to visualize 50 shuffled training examples from `molmoweb_synthetic_trajs`:
+
+```bash
+uv run python dataset_visualize.py molmoweb_synthetic_trajs ./viz --split train --num_examples 50 --shuffle
+```
+
+This saves `./viz/molmoweb_synthetic_trajs.html` with rendered examples (images, tokenized text, and ground-truth annotations).
+
+### Downloading Pretrained Checkpoints
+
+SFT training starts from a Molmo2 pretrained checkpoint. Download one of the pretrained base checkpoints from HuggingFace:
+
+```bash
+bash scripts/download_weights.sh allenai/MolmoWeb-Pretrained-8B   # 8B base
+bash scripts/download_weights.sh allenai/MolmoWeb-Pretrained-4B   # 4B base
+```
+
+This saves the checkpoint to `./checkpoints/MolmoWeb-Pretrained-8B` (or `-4B`). Set `CHECKPOINT_PATH` in `train/run_train.sh` to this path before launching training.
+
+| Model | HuggingFace Repo |
+|---|---|
+| MolmoWeb-Pretrained-8B | [allenai/MolmoWeb-Pretrained-8B](https://huggingface.co/allenai/MolmoWeb-Pretrained-8B) |
+| MolmoWeb-Pretrained-4B | [allenai/MolmoWeb-Pretrained-4B](https://huggingface.co/allenai/MolmoWeb-Pretrained-4B) |
+
+### SFT Training
+
+Configure the variables at the top of `train/run_train.sh`, then run:
+
+```bash
+cd train
+bash run_train.sh
+```
+
+| Variable | Default | Description |
+|---|---|---|
+| `CHECKPOINT_PATH` | MolmoWeb-Pretrained-4B | Path to pretrained starting checkpoint |
+| `MIXTURE` | `molmoweb` | Data mixture (`molmoweb` or `debug`) |
+| `NUM_GPUS` | `8` | GPUs per node |
+| `GLOBAL_BATCH_SIZE` | `64` | Total batch size across all GPUs |
+| `DEVICE_BATCH_SIZE` | `2` | Per-GPU batch size |
+| `SEQ_LEN` | `10240` | Sequence length |
+| `DURATION` | `500` | Number of training steps |
+| `SAVE_INTERVAL` | `100` | Checkpoint save frequency (steps) |
+
+To launch a debug run directly:
+
+```bash
+uv run torchrun -m --nproc-per-node 1 \
+  launch_scripts.train debug debug \
+  --save_folder=dbg \
+  --device_batch_size 1 \
+  --duration 10 \
+  --global_batch_size 2
+```
+---
+
+## Grounding Evaluation
+
+MolmoWeb can be evaluated on grounding benchmarks to measure how accurately the model predicts click coordinates for UI elements.
+
+| Benchmark | Task name |
+|---|---|
+| [ScreenSpot](https://huggingface.co/datasets/rootsautomation/ScreenSpot) | `screenspot` |
+| [ScreenSpot-v2](https://huggingface.co/datasets/likaixin/ScreenSpot-v2) | `screenspot_v2` |
+
+Configure the variables at the top of `train/run_ground_eval.sh`, then run:
+
+```bash
+cd train
+bash run_ground_eval.sh
+```
+
+| Variable | Default | Description |
+|---|---|---|
+| `CHECKPOINT_PATH` | MolmoWeb-4B-Native | Path to the NATIVE model checkpoint to evaluate |
+| `MIXTURE` | `screenspot:test,screenspot_v2:test` | Comma-separated `task:split` pairs |
+| `NUM_GPUS` | `1` | Number of GPUs |
+| `DEVICE_BATCH_SIZE` | `2` | Per-GPU batch size |
+| `SAVE_FOLDER` | results | Output directory for results |
+
+---
+
+## Citation
+
+```bibtex
+@misc{gupta2026molmowebopenvisualweb,
+      title={MolmoWeb: Open Visual Web Agent and Open Data for the Open Web}, 
+      author={Tanmay Gupta and Piper Wolters and Zixian Ma and Peter Sushko and Rock Yuren Pang and Diego Llanes and Yue Yang and Taira Anderson and Boyuan Zheng and Zhongzheng Ren and Harsh Trivedi and Taylor Blanton and Caleb Ouellette and Winson Han and Ali Farhadi and Ranjay Krishna},
+      year={2026},
+      eprint={2604.08516},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2604.08516}, 
+}
+```
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE) for details.
-
-## TODO
-
-- [x] Inference
-- [ ] Eval
-- [ ] Training

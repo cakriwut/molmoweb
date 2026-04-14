@@ -1,0 +1,7 @@
+{
+  "name": "molmoweb-extension",
+  "version": "0.0.1",
+  "devDependencies": {
+    "@types/chrome": "^0.0.287"
+  }
+}

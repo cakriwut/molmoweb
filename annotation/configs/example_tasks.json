@@ -1,0 +1,17 @@
+{
+  "study_title": "Example web browsing annotation",
+  "tasks": {
+    "demo": {
+      "domain": "example",
+      "instruction": "Open https://example.com and confirm the page loads.",
+      "task_name": "demo",
+      "task_steps": ["Goto https://example.com", "Confirm the page loads"]
+    },
+    "demo2": {
+      "domain": "example",
+      "instruction": "Find Ai2's website",
+      "task_name": "demo2",
+      "task_steps": ["Goto https://bing.com", "Search for Ai2", "Click the first result"]
+    }
+  }
+}
